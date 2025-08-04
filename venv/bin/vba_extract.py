@@ -1,4 +1,4 @@
-#!/opt/rasch_bot/venv/bin/python3
+#!/home/defen/rasch/venv/bin/python3
 
 ##############################################################################
 #

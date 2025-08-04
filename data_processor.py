@@ -5,7 +5,7 @@ import os
 import re
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from multiprocessing import cpu_count
-from rasch_model import rasch_model, ability_to_grade, ability_to_standard_score
+from rasch_model import rasch_model, ability_to_grade, ability_to_standard_score, RaschModel
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -428,12 +428,12 @@ def process_exam_data(df, progress_callback=None):
     if n_students > 1000:
         # Server quvvatining 80% ishlatish uchun optimal chunk size
         optimal_chunk = max(n_students // MAX_WORKERS, 800)
-        ability_estimates, item_difficulties = rasch_model(
+        ability_estimates, item_difficulties, rasch_model_obj = rasch_model(
             response_data, 
             max_students=optimal_chunk
         )
     else:
-        ability_estimates, item_difficulties = rasch_model(response_data)
+        ability_estimates, item_difficulties, rasch_model_obj = rasch_model(response_data)
     
     if progress_callback:
         progress_callback(50, "Baholar hisoblanmoqda...")
@@ -448,13 +448,13 @@ def process_exam_data(df, progress_callback=None):
             scores = np.array([ability_to_standard_score(a) for a in ability_chunk], dtype=np.float32)
             grades = np.full(len(scores), 'NC', dtype='<U3')
             
-            # Vectorized grading
-            grades[scores >= 85] = 'A+'
-            grades[(scores >= 75) & (scores < 85)] = 'A'
-            grades[(scores >= 65) & (scores < 75)] = 'B+'
-            grades[(scores >= 55) & (scores < 65)] = 'B'
-            grades[(scores >= 45) & (scores < 55)] = 'C+'
-            grades[(scores >= 35) & (scores < 45)] = 'C'
+            # O'zbekiston Milliy Sertifikat standartlari (2024)
+            grades[scores >= 70] = 'A+'
+            grades[(scores >= 65) & (scores < 70)] = 'A'
+            grades[(scores >= 60) & (scores < 65)] = 'B+'
+            grades[(scores >= 55) & (scores < 60)] = 'B'
+            grades[(scores >= 50) & (scores < 55)] = 'C+'
+            grades[(scores >= 46) & (scores < 50)] = 'C'
             
             return grades
         
@@ -528,7 +528,7 @@ def process_exam_data(df, progress_callback=None):
         progress_callback(100, "Tahlil yakunlandi!")
     
     # Return updated results including the cleaned dataframe and item difficulties
-    return results_df, ability_estimates, grade_counts, df_cleaned, item_difficulties
+    return results_df, ability_estimates, grade_counts, df_cleaned, item_difficulties, rasch_model_obj
 
 # FAOLSIZLANTIRILGAN: Keraksiz takroriy funksiya
 # def prepare_simplified_excel_old(results_df, title="Nazorat Ballari"):

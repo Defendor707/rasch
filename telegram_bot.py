@@ -12,6 +12,7 @@ import numpy as np
 import threading
 import time
 from data_processor import process_exam_data, prepare_excel_for_download, prepare_pdf_for_download, prepare_simplified_excel
+from rasch_model import RaschModel
 from utils import display_grade_distribution, GRADE_DESCRIPTIONS, calculate_statistics
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -626,7 +627,7 @@ def main():
             df = pd.read_excel(file_bytes)
             
             # Process the data with improved information
-            results_df, ability_estimates, grade_counts, data_df, beta_values = process_exam_data(df)
+            results_df, ability_estimates, grade_counts, data_df, beta_values, rasch_model_obj = process_exam_data(df)
             
             # Track user activity in database
             db.add_user(
@@ -655,21 +656,22 @@ def main():
                 'excel_data': excel_data,
                 'data_df': data_df,        # Original data with student responses
                 'beta_values': beta_values, # Item difficulty parameters from Rasch model
-                'original_df': df           # Original unprocessed data
+                'original_df': df,          # Original unprocessed data
+                'rasch_model': rasch_model_obj  # Rasch model object with fit statistics
             }
             
             # We no longer need to send the comparison file automatically
             # The results are sufficient if they are successfully processed
             
-            # Create keyboard with buttons
+            # Create keyboard with buttons - yaxshilangan tuzilish
             markup = types.InlineKeyboardMarkup(row_width=2)
             
-            btn_all_results = types.InlineKeyboardButton('📊 Barcha Natijalar va Grafiklar', callback_data='all_results')
+            btn_statistics = types.InlineKeyboardButton('📊 Statistika', callback_data='statistics')
             btn_excel = types.InlineKeyboardButton('💾 Excel formatda yuklash', callback_data='download_excel')
             btn_pdf = types.InlineKeyboardButton('📑 PDF formatda yuklash', callback_data='download_pdf')
             btn_simple_excel = types.InlineKeyboardButton('📝 Nazorat Ballari', callback_data='download_simple_excel')
             
-            markup.add(btn_all_results)
+            markup.add(btn_statistics)
             markup.add(btn_excel, btn_pdf)
             markup.add(btn_simple_excel)
             
@@ -759,6 +761,157 @@ def main():
     # Callback handler for inline buttons
     @bot.callback_query_handler(func=lambda call: True)
     def callback_query(call):
+        try:
+            # Extract callback data
+            callback_data = call.data
+            
+            # Handle different callback types
+            if callback_data.startswith('download_'):
+                handle_download_callback(call)
+            elif callback_data == 'statistics':
+                handle_statistics_callback(call)
+            elif callback_data == 'all_results':
+                handle_all_results_callback(call)
+            else:
+                # Default handling
+                handle_default_callback(call)
+                
+        except Exception as e:
+            logger.error(f"Callback xatosi: {e}")
+            bot.answer_callback_query(call.id, "Xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.")
+    
+    def handle_download_callback(call):
+        """Download callback handling"""
+        try:
+            user_id = call.from_user.id
+            if user_id not in user_data or 'results_df' not in user_data[user_id]:
+                bot.answer_callback_query(call.id, "Ma'lumotlar topilmadi. Iltimos, faylni qaytadan yuklang.")
+                return
+            
+            results_df = user_data[user_id]['results_df']
+            
+            if call.data == 'download_excel':
+                # Excel download
+                excel_buffer = prepare_excel_for_download(results_df)
+                bot.send_document(call.message.chat.id, 
+                                ('natijalar.xlsx', excel_buffer.getvalue(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))
+                bot.answer_callback_query(call.id, "Excel fayl yuklandi!")
+                
+            elif call.data == 'download_pdf':
+                # PDF download
+                pdf_buffer = prepare_pdf_for_download(results_df)
+                bot.send_document(call.message.chat.id, 
+                                ('natijalar.pdf', pdf_buffer.getvalue(), 'application/pdf'))
+                bot.answer_callback_query(call.id, "PDF fayl yuklandi!")
+                
+        except Exception as e:
+            logger.error(f"Download callback xatosi: {e}")
+            bot.answer_callback_query(call.id, "Yuklashda xatolik yuz berdi.")
+    
+
+    
+    def handle_statistics_callback(call):
+        """Yagona statistika callback - barcha ma'lumotlar va grafiklar"""
+        try:
+            user_id = call.from_user.id
+            if user_id not in user_data:
+                bot.answer_callback_query(call.id, "Ma'lumotlar topilmadi. Iltimos, faylni qaytadan yuklang.")
+                return
+            
+            results_df = user_data[user_id].get('results_df')
+            rasch_model = user_data[user_id].get('rasch_model')
+            
+            if results_df is None:
+                bot.answer_callback_query(call.id, "Natijalar topilmadi.")
+                return
+            
+            # 1. Statistika matni yaratish
+            stats_text = create_comprehensive_statistics(results_df, rasch_model)
+            
+            # 2. Wright map yaratish
+            wright_map_buffer = None
+            if rasch_model:
+                fig = rasch_model.create_wright_map()
+                if fig:
+                    wright_map_buffer = io.BytesIO()
+                    fig.savefig(wright_map_buffer, format='png', dpi=300, bbox_inches='tight')
+                    wright_map_buffer.seek(0)
+                    plt.close(fig)
+            
+            # 3. Fit statistikalar grafigi
+            fit_stats_buffer = None
+            if rasch_model and hasattr(rasch_model, 'infit_stats'):
+                from utils import create_fit_statistics_plot
+                fig = create_fit_statistics_plot(rasch_model)
+                if fig:
+                    fit_stats_buffer = io.BytesIO()
+                    fig.savefig(fit_stats_buffer, format='png', dpi=300, bbox_inches='tight')
+                    fit_stats_buffer.seek(0)
+                    plt.close(fig)
+            
+            # 4. Statistika Excel fayli yaratish
+            stats_excel_buffer = create_statistics_excel(results_df, rasch_model)
+            
+            # 5. Natijalarni yuborish
+            # Asosiy statistika matni + inline tugmalar
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            btn_excel = types.InlineKeyboardButton('💾 Excel formatda yuklash', callback_data='download_excel')
+            btn_pdf = types.InlineKeyboardButton('📑 PDF formatda yuklash', callback_data='download_pdf')
+            btn_simple_excel = types.InlineKeyboardButton('📝 Nazorat Ballari', callback_data='download_simple_excel')
+            
+            markup.add(btn_excel, btn_pdf)
+            markup.add(btn_simple_excel)
+            
+            bot.edit_message_text(stats_text, call.message.chat.id, call.message.message_id, 
+                                parse_mode='Markdown', reply_markup=markup)
+            
+            # Wright map
+            if wright_map_buffer:
+                bot.send_photo(call.message.chat.id, wright_map_buffer,
+                              caption="🗺️ **Wright Map (Item-Person Xaritasi)**\n\nTalabalar qobiliyati va savollar qiyinligi taqsimoti")
+            
+            # Fit statistikalar grafigi
+            if fit_stats_buffer:
+                bot.send_photo(call.message.chat.id, fit_stats_buffer,
+                              caption="📈 **Fit Statistikalar**\n\nInfit va Outfit ko'rsatkichlari")
+            
+            # Statistika Excel fayli
+            if stats_excel_buffer:
+                bot.send_document(call.message.chat.id,
+                                ('statistika.xlsx', stats_excel_buffer.getvalue(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                                caption="📊 **To'liq Statistika Hisoboti**\n\nBarcha statistik ma'lumotlar va jadvallar")
+            
+            bot.answer_callback_query(call.id, "📊 Statistika tayyorlandi!")
+            
+        except Exception as e:
+            logger.error(f"Statistics callback xatosi: {e}")
+            bot.answer_callback_query(call.id, "Statistika yaratishda xatolik yuz berdi.")
+    
+    def handle_all_results_callback(call):
+        """Barcha natijalar callback - eski funksiya"""
+        try:
+            user_id = call.from_user.id
+            if user_id not in user_data:
+                bot.answer_callback_query(call.id, "Ma'lumotlar topilmadi.")
+                return
+            
+            results_df = user_data[user_id].get('results_df')
+            if results_df is None:
+                bot.answer_callback_query(call.id, "Natijalar topilmadi.")
+                return
+            
+            # Oddiy natijalar ko'rsatish
+            stats_text = calculate_statistics(results_df)
+            bot.edit_message_text(stats_text, call.message.chat.id, call.message.message_id)
+            bot.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"All results callback xatosi: {e}")
+            bot.answer_callback_query(call.id, "Natijalarni ko'rishda xatolik yuz berdi.")
+    
+    def handle_default_callback(call):
+        """Default callback handling"""
+        bot.answer_callback_query(call.id, "Bu funksiya hali ishlab chiqilmoqda.")
         user_id = call.from_user.id
         bot.answer_callback_query(call.id)
         
@@ -1900,6 +2053,192 @@ def main():
     print("Bot ishga tushdi akasi...")
     # Start the bot
     bot.infinity_polling()
+
+def create_comprehensive_statistics(results_df, rasch_model=None):
+    """To'liq statistika matni yaratish"""
+    try:
+        total_students = len(results_df)
+        
+        # Asosiy statistika
+        avg_score = results_df['Standard Score'].mean()
+        std_score = results_df['Standard Score'].std()
+        min_score = results_df['Standard Score'].min()
+        max_score = results_df['Standard Score'].max()
+        
+        # Baholar bo'yicha hisoblash
+        grade_counts = results_df['Grade'].value_counts()
+        passing_grades = grade_counts.get('A+', 0) + grade_counts.get('A', 0) + \
+                        grade_counts.get('B+', 0) + grade_counts.get('B', 0) + \
+                        grade_counts.get('C+', 0) + grade_counts.get('C', 0)
+        pass_rate = (passing_grades / total_students) * 100
+        
+        # Statistika matni
+        stats_text = f"""
+📊 **TO'LIQ STATISTIKA HISOBOTI**
+
+👥 **Talabalar Ma'lumotlari:**
+• Jami talabalar: {total_students} ta
+• O'tish: {passing_grades} ta ({pass_rate:.1f}%)
+• O'tmagan: {total_students - passing_grades} ta ({(100-pass_rate):.1f}%)
+
+📈 **Ballar Statistikasi:**
+• O'rtacha ball: {avg_score:.1f}
+• Standart og'ish: {std_score:.1f}
+• Minimum ball: {min_score:.1f}
+• Maksimum ball: {max_score:.1f}
+
+🎯 **Baholar Taqsimoti:**
+"""
+        
+        # Baholar taqsimoti
+        for grade in ['A+', 'A', 'B+', 'B', 'C+', 'C', 'NC']:
+            count = grade_counts.get(grade, 0)
+            if count > 0:
+                percentage = (count / total_students) * 100
+                description = GRADE_DESCRIPTIONS.get(grade, '')
+                stats_text += f"• {grade}: {count} ta ({percentage:.1f}%) - {description}\n"
+        
+        # Rasch model statistikasi
+        if rasch_model:
+            stats_text += f"""
+🔬 **Rasch Model Statistikasi:**
+• Model turi: Dichotomous Rasch Model
+• Estimation usuli: Conditional MLE (CMLE)
+• Jami savollar: {rasch_model.n_items} ta
+• Qobiliyat oralig'i: {rasch_model.theta_range[0]} to {rasch_model.theta_range[1]} logits
+• Item qiyinligi oralig'i: {rasch_model.beta_range[0]} to {rasch_model.beta_range[1]} logits
+
+📊 **Fit Statistikalar:**
+"""
+            
+            if hasattr(rasch_model, 'fit_quality'):
+                fit_quality = rasch_model.fit_quality
+                stats_text += f"• Yaxshi moslik: {fit_quality['good_fit']} talaba\n"
+                stats_text += f"• Qabul qilinadigan: {fit_quality['acceptable_fit']} talaba\n"
+                stats_text += f"• Yomon moslik: {fit_quality['poor_fit']} talaba\n"
+                stats_text += f"• Umumiy moslik foizi: {fit_quality['fit_percentage']:.1f}%\n"
+            
+            if hasattr(rasch_model, 'infit_stats'):
+                stats_text += f"• Infit o'rtacha: {np.mean(rasch_model.infit_stats):.3f}\n"
+                stats_text += f"• Outfit o'rtacha: {np.mean(rasch_model.outfit_stats):.3f}\n"
+        
+        stats_text += f"""
+📋 **O'zbekiston Milliy Sertifikat Standartlari (2024):**
+• 70+ ball = A+ daraja (Ajoyib)
+• 65-69.9 ball = A daraja (Yaxshi)
+• 60-64.9 ball = B+ daraja (Qoniqarli)
+• 55-59.9 ball = B daraja (O'rtacha)
+• 50-54.9 ball = C+ daraja (Past)
+• 46-49.9 ball = C daraja (Juda past)
+• <46 ball = O'tmagan (NC)
+
+✅ **Natija**: {pass_rate:.1f}% talaba o'tish darajasiga erishdi
+"""
+        
+        return stats_text
+        
+    except Exception as e:
+        logger.error(f"Comprehensive statistics xatosi: {e}")
+        return "Statistika yaratishda xatolik yuz berdi."
+
+def create_statistics_excel(results_df, rasch_model=None):
+    """Statistika Excel fayli yaratish - faqat statistik ma'lumotlar"""
+    try:
+        import io
+        import pandas as pd
+        
+        # Excel buffer
+        excel_buffer = io.BytesIO()
+        
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            # 1. Baholar taqsimoti
+            grade_counts = results_df['Grade'].value_counts()
+            grade_df = pd.DataFrame({
+                'Baho': grade_counts.index,
+                'Talabalar soni': grade_counts.values,
+                'Foiz (%)': (grade_counts.values / len(results_df) * 100).round(1)
+            })
+            grade_df.to_excel(writer, sheet_name='Baholar Taqsimoti', index=False)
+            
+            # 2. Umumiy statistika
+            stats_data = {
+                'Ko\'rsatkich': [
+                    'Jami talabalar',
+                    'O\'rtacha ball',
+                    'Standart og\'ish',
+                    'Minimum ball',
+                    'Maksimum ball',
+                    'O\'tish foizi (%)'
+                ],
+                'Qiymat': [
+                    len(results_df),
+                    round(results_df['Standard Score'].mean(), 1),
+                    round(results_df['Standard Score'].std(), 1),
+                    round(results_df['Standard Score'].min(), 1),
+                    round(results_df['Standard Score'].max(), 1),
+                    round((grade_counts.get('A+', 0) + grade_counts.get('A', 0) + 
+                           grade_counts.get('B+', 0) + grade_counts.get('B', 0) + 
+                           grade_counts.get('C+', 0) + grade_counts.get('C', 0)) / len(results_df) * 100, 1)
+                ]
+            }
+            stats_df = pd.DataFrame(stats_data)
+            stats_df.to_excel(writer, sheet_name='Umumiy Statistika', index=False)
+            
+            # 3. Rasch model statistikasi
+            if rasch_model:
+                rasch_data = {
+                    'Parametr': [
+                        'Model turi',
+                        'Estimation usuli',
+                        'Jami savollar',
+                        'Qobiliyat oralig\'i',
+                        'Item qiyinligi oralig\'i'
+                    ],
+                    'Qiymat': [
+                        'Dichotomous Rasch Model',
+                        'Conditional MLE (CMLE)',
+                        rasch_model.n_items,
+                        f"{rasch_model.theta_range[0]} to {rasch_model.theta_range[1]} logits",
+                        f"{rasch_model.beta_range[0]} to {rasch_model.beta_range[1]} logits"
+                    ]
+                }
+                rasch_df = pd.DataFrame(rasch_data)
+                rasch_df.to_excel(writer, sheet_name='Rasch Model', index=False)
+                
+                # 4. Fit statistikalar
+                if hasattr(rasch_model, 'fit_quality'):
+                    fit_data = {
+                        'Ko\'rsatkich': [
+                            'Yaxshi moslik',
+                            'Qabul qilinadigan',
+                            'Yomon moslik',
+                            'Umumiy moslik foizi (%)'
+                        ],
+                        'Qiymat': [
+                            rasch_model.fit_quality['good_fit'],
+                            rasch_model.fit_quality['acceptable_fit'],
+                            rasch_model.fit_quality['poor_fit'],
+                            round(rasch_model.fit_quality['fit_percentage'], 1)
+                        ]
+                    }
+                    fit_df = pd.DataFrame(fit_data)
+                    fit_df.to_excel(writer, sheet_name='Fit Statistikalar', index=False)
+            
+            # 5. Milliy sertifikat standartlari
+            standards_data = {
+                'Baho': ['A+', 'A', 'B+', 'B', 'C+', 'C', 'NC'],
+                'Ball oralig\'i': ['70+', '65-69.9', '60-64.9', '55-59.9', '50-54.9', '46-49.9', '<46'],
+                'Tavsif': ['Ajoyib', 'Yaxshi', 'Qoniqarli', 'O\'rtacha', 'Past', 'Juda past', 'O\'tmagan']
+            }
+            standards_df = pd.DataFrame(standards_data)
+            standards_df.to_excel(writer, sheet_name='Milliy Sertifikat Standartlari', index=False)
+        
+        excel_buffer.seek(0)
+        return excel_buffer
+        
+    except Exception as e:
+        logger.error(f"Statistics Excel xatosi: {e}")
+        return None
 
 if __name__ == '__main__':
     main()
