@@ -37,6 +37,45 @@ logger = logging.getLogger(__name__)
 # Keep track of user data
 user_data = {}
 
+# Foydalanuvchi ma'lumotlarini saqlash uchun dictionary
+user_settings = {}
+
+# Milliy sertifikat fanalari va ularning bo'limlari
+SUBJECTS = {
+    'matematika': {
+        'name': 'Matematika',
+        'sections': ['Algebra', 'Geometriya', 'Trigonometriya', 'Kalkulyus']
+    },
+    'ona_tili': {
+        'name': 'Ona tili',
+        'sections': ['Leksikologiya', 'Fonetika', 'Morfologiya', 'Sintaksis', 'Adabiyot']
+    },
+    'fizika': {
+        'name': 'Fizika',
+        'sections': ['Mexanika', 'Elektromagnetizm', 'Optika', 'Atom fizikasi']
+    },
+    'kimyo': {
+        'name': 'Kimyo',
+        'sections': ['Anorganik kimyo', 'Organik kimyo', 'Analitik kimyo']
+    },
+    'biologiya': {
+        'name': 'Biologiya',
+        'sections': ['Botanika', 'Zoologiya', 'Anatomiya', 'Genetika']
+    },
+    'tarix': {
+        'name': 'Tarix',
+        'sections': ['O\'zbekiston tarixi', 'Jahon tarixi', 'Madaniyat tarixi']
+    },
+    'geografiya': {
+        'name': 'Geografiya',
+        'sections': ['Fizik geografiya', 'Iqtisodiy geografiya', 'O\'zbekiston geografiyasi']
+    },
+    'ingliz_tili': {
+        'name': 'Ingliz tili',
+        'sections': ['Grammar', 'Vocabulary', 'Reading', 'Writing', 'Speaking']
+    }
+}
+
 # Placeholder matnlar ro'yxati - turli xil jarayon xabarlari
 PROCESS_PLACEHOLDER_MESSAGES = [
     "⏳ Hisoblanmoqda... biroz kuting!",
@@ -175,46 +214,55 @@ def main():
     
     # Start command handler
     @bot.message_handler(commands=['start'])
-    def start_command(message):
-        # Reset any user state if active
-        if message.chat.id in user_data:
-            # Clear any ongoing operation like /ball
-            user_data[message.chat.id] = {}
-        
-        # Add user to database
-        db.add_user(
-            user_id=message.from_user.id,
-            first_name=message.from_user.first_name,
-            last_name=message.from_user.last_name or "",
-            username=message.from_user.username or ""
-        )
-        
-        # Foydalanuvchining ismini olish
-        user_first_name = message.from_user.first_name
-        
-        # Qisqa va lo'nda salomlashish
-        bot.send_message(
-            message.chat.id,
-            f"👋 Assalomu alaykum, {user_first_name}!\n\n"
-            f"🎓 *Rasch Counter Bot*ga xush kelibsiz!\n\n"
-            f"📝 Excel faylni yuboring va natijalarni oling",
-            parse_mode='Markdown'
-        )
-        
-        # Foydalanish yo'riqnomasi - ForceReply ishlatmaymiz
-        bot.send_message(
-            message.chat.id,
-            "📊 Excel faylni yuborishingiz mumkin"
-        )
+    def send_welcome(message):
+        """Start command handler"""
+        welcome_text = """
+🎓 *O'zbekiston BBA Standartlariga mos Rasch Model Bot*
+
+Bu bot milliy sertifikat imtihonlarining natijalarini Rasch modeli asosida tahlil qiladi.
+
+📋 *Mavjud buyruqlar:*
+• `/start` - Bot haqida ma'lumot
+• `/setting` - Fan va bo'limlarni sozlash
+• `/help` - Yordam
+
+📊 *Foydalanish:*
+1. `/setting` orqali fanni tanlang
+2. Bo'limlarga tegishli savollarni kiriting
+3. Natijalar matritsasini yuboring
+4. Tahlil natijalarini oling
+
+💡 *Qo'shimcha imkoniyatlar uchun `/setting` buyrug'ini ishlating!*
+"""
+        bot.reply_to(message, welcome_text, parse_mode='Markdown')
     
     # Help command handler
     @bot.message_handler(commands=['help'])
-    def help_command(message):
-        # Basic help message for all users
-        help_text = HELP_MESSAGE
-        
-        # Send the help message without admin commands
-        bot.send_message(message.chat.id, help_text)
+    def handle_help(message):
+        """Yordam ma'lumotlari"""
+        help_text = """
+📚 *Bot yordam ma'lumotlari*
+
+🎯 *Asosiy funksiyalar:*
+• Rasch modeli asosida test natijalarini tahlil qilish
+• Fan bo'limlari bo'yicha alohida salohiyat baholash
+• Professional hisobotlar yaratish
+
+⚙️ *Sozlash jarayoni:*
+1. `/setting` - Fan tanlash
+2. Har bir bo'lim uchun savol raqamlarini kiriting
+3. Natijalar matritsasini yuboring
+
+📊 *Hisobot turlari:*
+• 📊 Sertifikat Excel - Barcha statistikalar
+• 📋 Sertifikat PDF - Reyting va natijalar
+• 💾 Excel formatda yuklash - To'liq ma'lumotlar
+• 📑 PDF formatda yuklash - Chiroyli format
+• 📝 Nazorat Ballari - Oddiy natijalar
+
+❓ Savollaringiz bo'lsa, administrator bilan bog'laning.
+"""
+        bot.reply_to(message, help_text, parse_mode='Markdown')
     
     # Ball command handler
     @bot.message_handler(commands=['ball'])
@@ -1427,17 +1475,146 @@ def main():
                 filename="Sertifikat_Statistikalar.xlsx",
                 caption="📊 Sertifikat standartlariga mos Excel fayl\n\n💡 Ushbu faylda:\n- 🔸 Talabalar natijalari (reyting, ism, ball, baho)\n- 🔸 Umumiy statistikalar\n- 🔸 Rasch model parametrlari\n- 🔸 Fan bo'limlari bo'yicha salohiyat\n- 🔸 Fit statistikalar"
             )
-        elif call.data == "download_cert_pdf":
-            # Prepare certificate PDF file
-            cert_pdf_data = create_certificate_pdf(results_df, rasch_model)
+            elif call.data == "download_cert_pdf":
+        # Prepare certificate PDF file
+        cert_pdf_data = create_certificate_pdf(results_df, rasch_model)
+        
+        # Send the PDF file
+        bot.send_document(
+            chat_id=call.message.chat.id,
+            document=cert_pdf_data,
+            filename="Sertifikat_Natijalar.pdf",
+            caption="📋 Sertifikat standartlariga mos PDF fayl\n\n💡 Ushbu faylda:\n- 🔸 Reyting, ism, familya, ball\n- 🔸 O'tish foizi va baho\n- 🔸 Umumiy statistikalar\n- 🔸 Fan bo'limlari bo'yicha salohiyat"
+        )
+    elif call.data.startswith('set_subject_'):
+        # Fan tanlash
+        subject_key = call.data.replace('set_subject_', '')
+        chat_id = call.message.chat.id
+        
+        if subject_key in SUBJECTS:
+            # Foydalanuvchi ma'lumotlarini saqlash
+            if chat_id not in user_settings:
+                user_settings[chat_id] = {}
             
-            # Send the PDF file
-            bot.send_document(
-                chat_id=call.message.chat.id,
-                document=cert_pdf_data,
-                filename="Sertifikat_Natijalar.pdf",
-                caption="📋 Sertifikat standartlariga mos PDF fayl\n\n💡 Ushbu faylda:\n- 🔸 Reyting, ism, familya, ball\n- 🔸 O'tish foizi va baho\n- 🔸 Umumiy statistikalar\n- 🔸 Fan bo'limlari bo'yicha salohiyat"
+            user_settings[chat_id]['subject'] = SUBJECTS[subject_key]['name']
+            user_settings[chat_id]['subject_key'] = subject_key
+            user_settings[chat_id]['sections'] = {}
+            user_settings[chat_id]['current_section'] = 0
+            
+            # Bo'limlarni ko'rsatish
+            sections = SUBJECTS[subject_key]['sections']
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            
+            for i, section in enumerate(sections):
+                btn = types.InlineKeyboardButton(
+                    f"📖 {section}", 
+                    callback_data=f'set_section_{subject_key}_{i}'
+                )
+                markup.add(btn)
+            
+            success_text = f"✅ *{SUBJECTS[subject_key]['name']} fani tanlandi!*\n\n📖 *Bo'limlarni tanlang:*\n"
+            for i, section in enumerate(sections):
+                success_text += f"{i+1}. {section}\n"
+            
+            bot.edit_message_text(
+                success_text,
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='Markdown',
+                reply_markup=markup
             )
+        else:
+            bot.answer_callback_query(call.id, "❌ Xatolik: Fan topilmadi!")
+    
+    elif call.data.startswith('set_section_'):
+        # Bo'lim tanlash va savol raqamlarini so'rash
+        parts = call.data.split('_')
+        subject_key = parts[2]
+        section_index = int(parts[3])
+        chat_id = call.message.chat.id
+        
+        if subject_key in SUBJECTS and chat_id in user_settings:
+            sections = SUBJECTS[subject_key]['sections']
+            current_section = sections[section_index]
+            
+            # Foydalanuvchi holatini yangilash
+            user_settings[chat_id]['current_section'] = section_index
+            user_settings[chat_id]['waiting_for_questions'] = True
+            user_settings[chat_id]['current_section_name'] = current_section
+            
+            # Qolgan bo'limlarni hisoblash
+            remaining_sections = []
+            for i, section in enumerate(sections):
+                if i > section_index and section not in user_settings[chat_id]['sections']:
+                    remaining_sections.append(section)
+            
+            # Savol raqamlarini so'rash
+            question_text = f"📖 *{current_section} bo'limiga tegishli savollarni kiriting:*\n\n"
+            question_text += "💡 *Format:* Savol raqamlarini vergul bilan ajrating\n"
+            question_text += "📝 *Misol:* 1, 3, 5, 7, 9, 12, 15\n\n"
+            
+            if remaining_sections:
+                question_text += f"⏭️ *Keyingi bo'limlar:* {', '.join(remaining_sections[:2])}"
+                if len(remaining_sections) > 2:
+                    question_text += f" va {len(remaining_sections)-2} ta boshqa"
+            
+            markup = types.InlineKeyboardMarkup()
+            skip_btn = types.InlineKeyboardButton("⏭️ O'tkazib yuborish", callback_data=f'skip_section_{subject_key}_{section_index}')
+            markup.add(skip_btn)
+            
+            bot.edit_message_text(
+                question_text,
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='Markdown',
+                reply_markup=markup
+            )
+        else:
+            bot.answer_callback_query(call.id, "❌ Xatolik: Ma'lumotlar topilmadi!")
+    
+    elif call.data.startswith('skip_section_'):
+        # Bo'limni o'tkazib yuborish
+        parts = call.data.split('_')
+        subject_key = parts[2]
+        section_index = int(parts[3])
+        chat_id = call.message.chat.id
+        
+        if subject_key in SUBJECTS and chat_id in user_settings:
+            sections = SUBJECTS[subject_key]['sections']
+            current_section = sections[section_index]
+            
+            # Bo'limni o'tkazib yuborish
+            user_settings[chat_id]['sections'][current_section] = []
+            
+            # Keyingi bo'limga o'tish
+            next_section_index = section_index + 1
+            if next_section_index < len(sections):
+                # Keyingi bo'limni ko'rsatish
+                next_section = sections[next_section_index]
+                markup = types.InlineKeyboardMarkup()
+                next_btn = types.InlineKeyboardButton(
+                    f"📖 {next_section}", 
+                    callback_data=f'set_section_{subject_key}_{next_section_index}'
+                )
+                markup.add(next_btn)
+                
+                bot.edit_message_text(
+                    f"⏭️ *{current_section} o'tkazib yuborildi*\n\n📖 *Keyingi bo'lim:* {next_section}",
+                    call.message.chat.id,
+                    call.message.message_id,
+                    parse_mode='Markdown',
+                    reply_markup=markup
+                )
+            else:
+                # Barcha bo'limlar tugadi
+                bot.edit_message_text(
+                    f"✅ *Sozlash tugadi!*\n\n📚 Fan: {SUBJECTS[subject_key]['name']}\n📖 Bo'limlar: {len(user_settings[chat_id]['sections'])} ta\n\n📊 Endi natijalar matritsasini yuborishingiz mumkin!",
+                    call.message.chat.id,
+                    call.message.message_id,
+                    parse_mode='Markdown'
+                )
+        else:
+            bot.answer_callback_query(call.id, "❌ Xatolik: Ma'lumotlar topilmadi!")
             
             # Send the Excel file
             bot.send_document(
@@ -2505,6 +2682,117 @@ def create_certificate_pdf(results_df, rasch_model=None):
     buffer.seek(0)
     
     return buffer
+
+@bot.message_handler(commands=['setting'])
+def handle_setting(message):
+    """Fan va bo'limlarni sozlash"""
+    chat_id = message.chat.id
+    
+    # Foydalanuvchi ma'lumotlarini tekshirish
+    if chat_id in user_settings:
+        current_subject = user_settings[chat_id].get('subject', 'Tanlanmagan')
+        current_sections = user_settings[chat_id].get('sections', {})
+        
+        current_info = f"🔧 *Joriy sozlamalar:*\n📚 Fan: {current_subject}\n📖 Bo'limlar: {len(current_sections)} ta\n\n"
+    else:
+        current_info = "🔧 *Joriy sozlamalar:*\n📚 Fan: Tanlanmagan\n📖 Bo'limlar: 0 ta\n\n"
+    
+    # Fanlar ro'yxatini yaratish
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    
+    for key, subject in SUBJECTS.items():
+        btn = types.InlineKeyboardButton(
+            f"📚 {subject['name']}", 
+            callback_data=f'set_subject_{key}'
+        )
+        markup.add(btn)
+    
+    setting_text = current_info + "📚 *Milliy sertifikat fanalaridan birini tanlang:*"
+    
+    bot.reply_to(message, setting_text, parse_mode='Markdown', reply_markup=markup)
+
+@bot.message_handler(content_types=['text'])
+def handle_text(message):
+    """Text message handler"""
+    chat_id = message.chat.id
+    text = message.text.strip()
+    
+    # Check if user is waiting for ball input
+    if chat_id in user_data and user_data[chat_id].get('waiting_for_ball'):
+        handle_ball_input(message)
+    # Check if user is waiting for section questions
+    elif chat_id in user_settings and user_settings[chat_id].get('waiting_for_questions'):
+        handle_section_questions(message)
+    else:
+        # Default response for text messages
+        bot.reply_to(message, "📝 Iltimos, Excel faylni yuboring yoki /help buyrug'ini ishlating.")
+
+def handle_section_questions(message):
+    """Bo'lim savollarini qayta ishlash"""
+    chat_id = message.chat.id
+    text = message.text.strip()
+    
+    if chat_id not in user_settings:
+        bot.reply_to(message, "❌ Xatolik: Sozlamalar topilmadi. /setting buyrug'ini ishlating.")
+        return
+    
+    current_section = user_settings[chat_id]['current_section_name']
+    subject_key = user_settings[chat_id]['subject_key']
+    
+    try:
+        # Savol raqamlarini ajratish
+        question_numbers = []
+        for part in text.split(','):
+            part = part.strip()
+            if part.isdigit():
+                question_numbers.append(int(part))
+        
+        if not question_numbers:
+            bot.reply_to(message, "❌ Xatolik: Savol raqamlarini to'g'ri kiriting!\n\n💡 *Misol:* 1, 3, 5, 7, 9", parse_mode='Markdown')
+            return
+        
+        # Savollarni saqlash
+        user_settings[chat_id]['sections'][current_section] = question_numbers
+        user_settings[chat_id]['waiting_for_questions'] = False
+        
+        # Keyingi bo'limga o'tish
+        sections = SUBJECTS[subject_key]['sections']
+        current_index = user_settings[chat_id]['current_section']
+        next_index = current_index + 1
+        
+        if next_index < len(sections):
+            # Keyingi bo'limni ko'rsatish
+            next_section = sections[next_index]
+            markup = types.InlineKeyboardMarkup()
+            next_btn = types.InlineKeyboardButton(
+                f"📖 {next_section}", 
+                callback_data=f'set_section_{subject_key}_{next_index}'
+            )
+            skip_btn = types.InlineKeyboardButton("⏭️ O'tkazib yuborish", callback_data=f'skip_section_{subject_key}_{next_index}')
+            markup.add(next_btn)
+            markup.add(skip_btn)
+            
+            success_text = f"✅ *{current_section} bo'limi saqlandi!*\n\n"
+            success_text += f"📊 Savollar: {len(question_numbers)} ta\n"
+            success_text += f"📝 Raqamlar: {', '.join(map(str, question_numbers))}\n\n"
+            success_text += f"📖 *Keyingi bo'lim:* {next_section}"
+            
+            bot.reply_to(message, success_text, parse_mode='Markdown', reply_markup=markup)
+        else:
+            # Barcha bo'limlar tugadi
+            total_sections = len(user_settings[chat_id]['sections'])
+            total_questions = sum(len(questions) for questions in user_settings[chat_id]['sections'].values())
+            
+            success_text = f"✅ *Sozlash muvaffaqiyatli tugadi!*\n\n"
+            success_text += f"📚 Fan: {user_settings[chat_id]['subject']}\n"
+            success_text += f"📖 Bo'limlar: {total_sections} ta\n"
+            success_text += f"📊 Jami savollar: {total_questions} ta\n\n"
+            success_text += "📊 *Endi natijalar matritsasini yuborishingiz mumkin!*"
+            
+            bot.reply_to(message, success_text, parse_mode='Markdown')
+            
+    except Exception as e:
+        bot.reply_to(message, f"❌ Xatolik: {str(e)}\n\n💡 Iltimos, qaytadan urinib ko'ring.")
 
 if __name__ == '__main__':
     main()
