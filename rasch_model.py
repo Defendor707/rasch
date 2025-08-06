@@ -552,34 +552,37 @@ def ability_to_grade(ability, thresholds=None, min_passing_percent=60):
     O'zbekiston Milliy Sertifikat standartlariga ko'ra baholarni tayinlash (2024).
     
     Parameters:
-    - ability: Talabaning qobiliyat bahosi
+    - ability: Talabaning qobiliyat bahosi (0-100 ball)
     - thresholds: Baho chegaralari (ixtiyoriy)
     - min_passing_percent: Minimal o'tish foizi
     
     Returns:
     - grade: Tayinlangan baho
     """
-    # Qobiliyatni 0-100 ballga o'tkazish
-    # Rasch model logit scale: -4 dan +4 gacha
-    # Uni 0-100 gacha o'zgartirish
-    
-    normalized_ability = (ability + 4) / 8 * 100
-    normalized_ability = np.clip(normalized_ability, 0, 100)
+    # Agar ability allaqachon 0-100 oralig'ida bo'lsa, to'g'ridan-to'g'ri ishlatamiz
+    if isinstance(ability, (int, float)) and 0 <= ability <= 100:
+        score = ability
+    else:
+        # Qobiliyatni 0-100 ballga o'tkazish
+        # Rasch model logit scale: -4 dan +4 gacha
+        # Uni 0-100 gacha o'zgartirish
+        normalized_ability = (ability + 4) / 8 * 100
+        score = np.clip(normalized_ability, 0, 100)
     
     # O'zbekiston Milliy Sertifikat standartlari (2024)
     # Vazirlar Mahkamasi qarori asosida
     
-    if normalized_ability >= 70:
+    if score >= 70:
         return 'A+'  # 70+ ball = A+ daraja
-    elif normalized_ability >= 65:
+    elif score >= 65:
         return 'A'   # 65-69.9 ball = A daraja
-    elif normalized_ability >= 60:
+    elif score >= 60:
         return 'B+'  # 60-64.9 ball = B+ daraja
-    elif normalized_ability >= 55:
+    elif score >= 55:
         return 'B'   # 55-59.9 ball = B daraja
-    elif normalized_ability >= 50:
+    elif score >= 50:
         return 'C+'  # 50-54.9 ball = C+ daraja
-    elif normalized_ability >= 46:
+    elif score >= 46:
         return 'C'   # 46-49.9 ball = C daraja
     else:
         return 'NC'  # 46 balldan past = O'tmagan
