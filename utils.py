@@ -62,6 +62,11 @@ def calculate_statistics(results_df):
                     grade_counts.get('C+', 0) + grade_counts.get('C', 0)
     pass_rate = (passing_grades / total_students) * 100
     
+    # OTM foizi hisoblash (65 ball va undan yuqori)
+    otm_threshold = 65
+    otm_students = len(results_df[results_df['Standard Score'] >= otm_threshold])
+    otm_percentage = (otm_students / total_students) * 100
+    
     text = f"""
 📈 **Asosiy Statistika**
 
@@ -75,6 +80,9 @@ def calculate_statistics(results_df):
 • Standart og'ish: {std_score:.1f}
 • Minimum: {min_score:.1f}
 • Maksimum: {max_score:.1f}
+
+🎯 **OTM Foizi:**
+• {otm_students} ta talaba ({otm_percentage:.1f}%) - 65 ball va undan yuqori
 
 🎯 **Baholar:**
 """
