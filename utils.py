@@ -4,28 +4,26 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from io import BytesIO
 
-# O'zbekiston Milliy Sertifikat standartlari bo'yicha baholash (2024)
+# O'zbekiston Milliy Sertifikat standartlari bo'yicha baholash (2024) - yangilangan
 GRADE_DESCRIPTIONS = {
-    'A+': 'Ajoyib (70+ ball)',
-    'A': 'Yaxshi (65-69.9 ball)', 
-    'B+': 'Qoniqarli (60-64.9 ball)',
-    'B': 'O\'rtacha (55-59.9 ball)',
-    'C+': 'Past (50-54.9 ball)',
-    'C': 'Juda past (46-49.9 ball)',
-    'NC': 'O\'tmagan (<46 ball)'
+    'A+': 'Ajoyib (70+ ball) - Oliy Imtiyozli',
+    'A': 'Yaxshi (65-69.9 ball) - Oliy', 
+    'B+': 'Qoniqarli (60-64.9 ball) - Yuqori Imtiyozli',
+    'B': 'O\'rtacha (55-59.9 ball) - Yuqori',
+    'C+': 'Past (50-54.9 ball) - O\'rta Imtiyozli',
+    'C': 'Juda past (46-49.9 ball) - O\'rta',
+    'NC': 'O\'tmagan (<46 ball) - Sertifikatsiz'
 }
 
-# Grade colors for visualization - updated to match PDF colors in screenshot
+# Grade colors for visualization - yangilangan PDF ranglariga mos
 GRADE_COLORS = {
-    'A+': '#00CC00',  # Yashil (A+ daraja) - yangi skrinshot
-    'A': '#00CC00',   # Yashil (A daraja) - yangi skrinshot
-    'B+': '#FF9900',  # Naranja (B+ daraja) - yangi skrinshot
-    'B': '#3366FF',   # Ko'k (B daraja) - yangi skrinshot 
-    'C+': '#3366FF',  # Ko'k (C+ daraja) - yangi skrinshot
-    'C': '#3366FF',   # Ko'k (C daraja) - yangi skrinshot
-    'D': '#FF0000',   # Qizil (D daraja)
-    'NC': '#FF0000',  # Qizil
-    'F': '#FF0000'    # Qizil
+    'A+': '#006400',  # Dark Green (A+ daraja)
+    'A': '#28B463',   # Green (A daraja)
+    'B+': '#1A237E',  # Dark Blue (B+ daraja)
+    'B': '#3498DB',   # Blue (B daraja)
+    'C+': '#8D6E63',  # Brown (C+ daraja)
+    'C': '#F4D03F',   # Yellow (C daraja)
+    'NC': '#E74C3C'   # Red (NC daraja)
 }
 
 def display_grade_distribution(grade_counts):
@@ -45,7 +43,7 @@ def display_grade_distribution(grade_counts):
     return text
 
 def calculate_statistics(results_df):
-    """Asosiy statistikalarini hisoblash"""
+    """Asosiy statistikalarini hisoblash - yangilangan"""
     if results_df.empty:
         return "Ma'lumotlar mavjud emas"
     
@@ -62,10 +60,14 @@ def calculate_statistics(results_df):
                     grade_counts.get('C+', 0) + grade_counts.get('C', 0)
     pass_rate = (passing_grades / total_students) * 100
     
-    # OTM foizi hisoblash (65 ball va undan yuqori)
+    # OTM foizi hisoblash (65 ball va undan yuqori) - yangilangan
     otm_threshold = 65
     otm_students = len(results_df[results_df['Standard Score'] >= otm_threshold])
     otm_percentage = (otm_students / total_students) * 100
+    
+    # A+ va A baholar soni (70+ va 65-69.9)
+    top_grades = grade_counts.get('A+', 0) + grade_counts.get('A', 0)
+    top_percentage = (top_grades / total_students) * 100
     
     text = f"""
 📈 **Asosiy Statistika**
@@ -81,17 +83,21 @@ def calculate_statistics(results_df):
 • Minimum: {min_score:.1f}
 • Maksimum: {max_score:.1f}
 
-🎯 **OTM Foizi:**
-• {otm_students} ta talaba ({otm_percentage:.1f}%) - 65 ball va undan yuqori
+🎯 **OTM Foizi (65+ ball):**
+• {otm_students} ta talaba ({otm_percentage:.1f}%)
 
-🎯 **Baholar:**
+🏆 **A+ va A baholar:**
+• {top_grades} ta talaba ({top_percentage:.1f}%)
+
+🎯 **Baholar taqsimoti:**
 """
     
     for grade in ['A+', 'A', 'B+', 'B', 'C+', 'C', 'NC']:
         count = grade_counts.get(grade, 0)
         if count > 0:
             percentage = (count / total_students) * 100
-            text += f"• {grade}: {count} ta ({percentage:.1f}%)\n"
+            description = GRADE_DESCRIPTIONS.get(grade, '')
+            text += f"• {grade}: {count} ta ({percentage:.1f}%) - {description}\n"
     
     return text
 

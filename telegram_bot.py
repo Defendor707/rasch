@@ -161,7 +161,7 @@ def migrate_database():
 def main():
     """Start the bot."""
     # Get the telegram token
-    token = "8061680273:AAGgJhdvWUwnP1JJcgk_AksRxSJSs_VbvLk"
+    token = "8061680273:AAFSs9LqncUy-P441QglkpCps5oM2rxyKqI"
     if not token:
         logger.error("TELEGRAM_TOKEN not found in environment variables.")
         print("Please set the TELEGRAM_TOKEN environment variable.")
@@ -2257,6 +2257,11 @@ def create_comprehensive_statistics(results_df, rasch_model=None):
                         grade_counts.get('C+', 0) + grade_counts.get('C', 0)
         pass_rate = (passing_grades / total_students) * 100
         
+        # OTM foizi hisoblash (65 ball va undan yuqori) - qo'shildi
+        otm_threshold = 65
+        otm_students = len(results_df[results_df['Standard Score'] >= otm_threshold])
+        otm_percentage = (otm_students / total_students) * 100
+        
         # Statistika matni
         stats_text = f"""
 📊 **TO'LIQ STATISTIKA HISOBOTI**
@@ -2309,15 +2314,16 @@ def create_comprehensive_statistics(results_df, rasch_model=None):
         
         stats_text += f"""
 📋 **O'zbekiston Milliy Sertifikat Standartlari (2024):**
-• 70+ ball = A+ daraja (Ajoyib)
-• 65-69.9 ball = A daraja (Yaxshi)
-• 60-64.9 ball = B+ daraja (Qoniqarli)
-• 55-59.9 ball = B daraja (O'rtacha)
-• 50-54.9 ball = C+ daraja (Past)
-• 46-49.9 ball = C daraja (Juda past)
-• <46 ball = O'tmagan (NC)
+• 70+ ball = A+ daraja (Ajoyib - Oliy Imtiyozli)
+• 65-69.9 ball = A daraja (Yaxshi - Oliy)
+• 60-64.9 ball = B+ daraja (Qoniqarli - Yuqori Imtiyozli)
+• 55-59.9 ball = B daraja (O'rtacha - Yuqori)
+• 50-54.9 ball = C+ daraja (Past - O'rta Imtiyozli)
+• 46-49.9 ball = C daraja (Juda past - O'rta)
+• <46 ball = O'tmagan (NC - Sertifikatsiz)
 
 ✅ **Natija**: {pass_rate:.1f}% talaba o'tish darajasiga erishdi
+🎯 **OTM foizi**: {otm_students} ta talaba ({otm_percentage:.1f}%) - 65 ball va undan yuqori
 """
         
         return stats_text
@@ -2345,11 +2351,15 @@ def create_statistics_excel(results_df, rasch_model=None):
             })
             grade_df.to_excel(writer, sheet_name='Baholar Taqsimoti', index=False)
             
-            # 2. Umumiy statistika
+            # 2. Umumiy statistika - yangilangan
             # OTM foizi hisoblash (65 ball va undan yuqori)
             otm_threshold = 65
             otm_students = len(results_df[results_df['Standard Score'] >= otm_threshold])
             otm_percentage = (otm_students / len(results_df)) * 100
+            
+            # A+ va A baholar soni (70+ va 65-69.9)
+            top_grades = grade_counts.get('A+', 0) + grade_counts.get('A', 0)
+            top_percentage = (top_grades / len(results_df)) * 100
             
             stats_data = {
                 'Ko\'rsatkich': [
@@ -2360,7 +2370,9 @@ def create_statistics_excel(results_df, rasch_model=None):
                     'Maksimum ball',
                     'O\'tish foizi (%)',
                     'OTM foizi (%) (65+ ball)',
-                    'OTM talabalar soni'
+                    'OTM talabalar soni',
+                    'A+ va A baholar (%)',
+                    'A+ va A talabalar soni'
                 ],
                 'Qiymat': [
                     len(results_df),
@@ -2372,7 +2384,9 @@ def create_statistics_excel(results_df, rasch_model=None):
                            grade_counts.get('B+', 0) + grade_counts.get('B', 0) + 
                            grade_counts.get('C+', 0) + grade_counts.get('C', 0)) / len(results_df) * 100, 1),
                     round(otm_percentage, 1),
-                    otm_students
+                    otm_students,
+                    round(top_percentage, 1),
+                    top_grades
                 ]
             }
             stats_df = pd.DataFrame(stats_data)
@@ -2418,11 +2432,11 @@ def create_statistics_excel(results_df, rasch_model=None):
                     fit_df = pd.DataFrame(fit_data)
                     fit_df.to_excel(writer, sheet_name='Fit Statistikalar', index=False)
             
-            # 5. Milliy sertifikat standartlari
+            # 5. Milliy sertifikat standartlari - yangilangan
             standards_data = {
                 'Baho': ['A+', 'A', 'B+', 'B', 'C+', 'C', 'NC'],
                 'Ball oralig\'i': ['70+', '65-69.9', '60-64.9', '55-59.9', '50-54.9', '46-49.9', '<46'],
-                'Tavsif': ['Ajoyib', 'Yaxshi', 'Qoniqarli', 'O\'rtacha', 'Past', 'Juda past', 'O\'tmagan']
+                'Tavsif': ['Ajoyib - Oliy Imtiyozli', 'Yaxshi - Oliy', 'Qoniqarli - Yuqori Imtiyozli', 'O\'rtacha - Yuqori', 'Past - O\'rta Imtiyozli', 'Juda past - O\'rta', 'O\'tmagan - Sertifikatsiz']
             }
             standards_df = pd.DataFrame(standards_data)
             standards_df.to_excel(writer, sheet_name='Milliy Sertifikat Standartlari', index=False)

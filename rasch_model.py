@@ -526,23 +526,22 @@ def _estimate_beta_given_theta(data, theta):
 
 def ability_to_standard_score(ability):
     """
-    Convert ability estimate to standard score using the formula: T = 50 + 10Z
-    Where Z = (θ - μ)/σ
+    Convert ability estimate to standard score using the same formula as in data_processor.py
+    Formula: (ability + 4) / 8 * 100
     
     Parameters:
-    - ability: The student's ability estimate (θ)
+    - ability: The student's ability estimate (θ) or already a score (0-100)
     
     Returns:
-    - standard_score: Standardized score (T)
+    - standard_score: Standardized score (0-100)
     """
-    # Calculate Z-score: (ability - mean) / std_dev
-    # Since the theta values are centered around 0 (mean=0),
-    # we can simplify Z = ability / std_dev
-    # Assuming std_dev = 1 for Rasch standardization
-    z_score = ability  # This is already a standardized value in Rasch model
+    # If ability is already in 0-100 range, return it as is
+    if isinstance(ability, (int, float)) and 0 <= ability <= 100:
+        return ability
     
-    # Apply the formula T = 50 + 10Z
-    standard_score = 50 + (10 * z_score)
+    # Use the same conversion formula as in data_processor.py
+    # This ensures consistency across the application
+    standard_score = (ability + 4) / 8 * 100
     
     # Ensure the score is in a reasonable range (0-100)
     return max(0, min(100, standard_score))

@@ -1061,7 +1061,7 @@ def prepare_excel_with_charts(results_df, grade_counts, ability_estimates, data_
 
 def prepare_excel_for_download(results_df):
     """
-    Prepare the results DataFrame as an Excel file for download.
+    Prepare the results DataFrame as an Excel file for download - yangilangan.
     
     Parameters:
     - results_df: DataFrame with processed results
@@ -1076,7 +1076,13 @@ def prepare_excel_for_download(results_df):
     if 'Rank' not in df.columns:
         df['Rank'] = range(1, len(df) + 1)
     
-    # OTM percentage calculation removed as per client request
+    # OTM foizi hisoblash (65 ball va undan yuqori) - qayta qo'shildi
+    otm_threshold = 65
+    otm_students = len(df[df['Standard Score'] >= otm_threshold])
+    otm_percentage = (otm_students / len(df)) * 100
+    
+    # OTM foizi ustunini qo'shish
+    df['OTM_Foizi'] = df['Standard Score'].apply(lambda x: 'Ha' if x >= otm_threshold else 'Yo\'q')
     
     # Sort by Standard Score in descending order
     df = df.sort_values(by='Standard Score', ascending=False).reset_index(drop=True)
@@ -1143,13 +1149,14 @@ def prepare_excel_for_download(results_df):
             if grade in grade_formats:
                 worksheet.write(row_num+1, grade_col, grade, grade_formats[grade])
         
-        # Set column widths
+        # Set column widths - yangilangan
         worksheet.set_column('A:A', 6)   # Rank (No ustuni uchun kichikroq kenglik)
         worksheet.set_column('B:B', 30)  # Student ID (Ism-familiya uchun kattaroq kenglik)
         worksheet.set_column('C:C', 10)  # Raw Score
         worksheet.set_column('D:D', 12)  # Ability
         worksheet.set_column('E:E', 12)  # Standard Score
         worksheet.set_column('F:F', 8)   # Grade
+        worksheet.set_column('G:G', 10)  # OTM Foizi
     
     # Reset the pointer to the beginning of the BytesIO object
     excel_data.seek(0)
@@ -1222,15 +1229,15 @@ def prepare_pdf_for_download(results_df, title="REPETITSION TEST NATIJALARI"):
     elements.append(Paragraph(full_title, title_style))
     elements.append(Spacer(1, 8*mm))
     
-    # Get grade descriptions for the footer
+    # Get grade descriptions for the footer - yangilangan
     grade_descriptions = {
-        'A+': '1-Daraja (Oliy Imtiyozli)',
-        'A': '1-Daraja (Oliy)',
-        'B+': '2-Daraja (Yuqori Imtiyozli)', 
-        'B': '2-Daraja (Yuqori)',
-        'C+': '3-Daraja (O\'rta Imtiyozli)',
-        'C': '3-Daraja (O\'rta)',
-        'NC': '4-Daraja (Sertifikatsiz)'
+        'A+': 'Ajoyib (70+ ball) - Oliy Imtiyozli',
+        'A': 'Yaxshi (65-69.9 ball) - Oliy',
+        'B+': 'Qoniqarli (60-64.9 ball) - Yuqori Imtiyozli', 
+        'B': 'O\'rtacha (55-59.9 ball) - Yuqori',
+        'C+': 'Past (50-54.9 ball) - O\'rta Imtiyozli',
+        'C': 'Juda past (46-49.9 ball) - O\'rta',
+        'NC': 'O\'tmagan (<46 ball) - Sertifikatsiz'
     }
     
     # Sort the dataframe by scores in descending order for better presentation
