@@ -2111,18 +2111,25 @@ def main():
     def assign_grade(score):
         """
         Assign a grade (A+, A, B+, B, C+, C, NC) based on score.
+        Rasmiy mezonlar:
+        70+ ball – A+ daraja
+        65 – 69,9 ball – A daraja
+        60 – 64,9 ball – B+ daraja
+        55 – 59,9 ball – B daraja
+        50 – 54,9 ball – C+ daraja
+        46 – 49,9 ball – C daraja
         """
-        if score >= 86:
+        if score >= 70:
             return 'A+'
-        elif score >= 71:
+        elif score >= 65:
             return 'A'
-        elif score >= 66:
-            return 'B+'
         elif score >= 60:
-            return 'B'
+            return 'B+'
         elif score >= 55:
-            return 'C+'
+            return 'B'
         elif score >= 50:
+            return 'C+'
+        elif score >= 46:
             return 'C'
         else:
             return 'NC'
