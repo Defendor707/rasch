@@ -613,9 +613,21 @@ def prepare_simplified_excel(results_df, title="Nazorat Ballari"):
     simplified_df['Talaba'] = df['Student ID']
     simplified_df['Ball'] = df['Standard Score']
     
-    # OTM foizi hisoblash va qo'shish
+    # OTM foizi hisoblash va qo'shish - yangilangan formula
     otm_threshold = 65
-    simplified_df['OTM_Foizi'] = df['Standard Score'].apply(lambda x: f"{(x / otm_threshold * 100):.2f}%" if x > 0 else "0.00%")
+    min_threshold = 46  # Sertifikat olish uchun minimal ball
+    
+    def calculate_otm_percentage(score):
+        if score < min_threshold:
+            return "0.00%"  # Sertifikat olmaydi
+        elif score >= otm_threshold:
+            return "100.00%"  # To'liq grant (A va A+ baholar)
+        else:
+            # 46-65 ball oralig'ida foiz hisoblanadi
+            percentage = (score / otm_threshold) * 100
+            return f"{percentage:.2f}%"
+    
+    simplified_df['OTM_Foizi'] = df['Standard Score'].apply(calculate_otm_percentage)
     
     # Sort by score in descending order
     simplified_df = simplified_df.sort_values(by='Ball', ascending=False).reset_index(drop=True)
@@ -1083,11 +1095,22 @@ def prepare_excel_for_download(results_df):
     
     # OTM foizi hisoblash (65 ball va undan yuqori) - yangilangan
     otm_threshold = 65
+    min_threshold = 46  # Sertifikat olish uchun minimal ball
     otm_students = len(df[df['Standard Score'] >= otm_threshold])
     otm_percentage = (otm_students / len(df)) * 100
     
-    # OTM foizi ustunini qo'shish - foiz ko'rinishida
-    df['OTM_Foizi'] = df['Standard Score'].apply(lambda x: f"{(x / otm_threshold * 100):.2f}%" if x > 0 else "0.00%")
+    # OTM foizi ustunini qo'shish - yangilangan formula
+    def calculate_otm_percentage(score):
+        if score < min_threshold:
+            return "0.00%"  # Sertifikat olmaydi
+        elif score >= otm_threshold:
+            return "100.00%"  # To'liq grant (A va A+ baholar)
+        else:
+            # 46-65 ball oralig'ida foiz hisoblanadi
+            percentage = (score / otm_threshold) * 100
+            return f"{percentage:.2f}%"
+    
+    df['OTM_Foizi'] = df['Standard Score'].apply(calculate_otm_percentage)
     
     # Sort by Standard Score in descending order
     df = df.sort_values(by='Standard Score', ascending=False).reset_index(drop=True)
@@ -1252,9 +1275,21 @@ def prepare_pdf_for_download(results_df, title="REPETITSION TEST NATIJALARI"):
     if 'Rank' not in results_df_sorted.columns:
         results_df_sorted['Rank'] = range(1, len(results_df_sorted) + 1)
     
-    # OTM foizi hisoblash va qo'shish
+    # OTM foizi hisoblash va qo'shish - yangilangan formula
     otm_threshold = 65
-    results_df_sorted['OTM_Foizi'] = results_df_sorted['Standard Score'].apply(lambda x: f"{(x / otm_threshold * 100):.2f}%" if x > 0 else "0.00%")
+    min_threshold = 46  # Sertifikat olish uchun minimal ball
+    
+    def calculate_otm_percentage(score):
+        if score < min_threshold:
+            return "0.00%"  # Sertifikat olmaydi
+        elif score >= otm_threshold:
+            return "100.00%"  # To'liq grant (A va A+ baholar)
+        else:
+            # 46-65 ball oralig'ida foiz hisoblanadi
+            percentage = (score / otm_threshold) * 100
+            return f"{percentage:.2f}%"
+    
+    results_df_sorted['OTM_Foizi'] = results_df_sorted['Standard Score'].apply(calculate_otm_percentage)
     
     # Column widths optimized for landscape - OTM foizi ustuni qo'shildi
     col_widths = [8*mm, 50*mm, 20*mm, 25*mm, 15*mm]
