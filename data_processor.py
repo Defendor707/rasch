@@ -608,10 +608,14 @@ def prepare_simplified_excel(results_df, title="Nazorat Ballari"):
     # Copy the dataframe to avoid modifying the original
     df = results_df.copy()
     
-    # Keep only necessary columns
+    # Keep only necessary columns - OTM foizi qo'shildi
     simplified_df = pd.DataFrame()
     simplified_df['Talaba'] = df['Student ID']
     simplified_df['Ball'] = df['Standard Score']
+    
+    # OTM foizi hisoblash va qo'shish
+    otm_threshold = 65
+    simplified_df['OTM_Foizi'] = df['Standard Score'].apply(lambda x: f"{(x / otm_threshold * 100):.2f}%" if x > 0 else "0.00%")
     
     # Sort by score in descending order
     simplified_df = simplified_df.sort_values(by='Ball', ascending=False).reset_index(drop=True)
@@ -642,9 +646,10 @@ def prepare_simplified_excel(results_df, title="Nazorat Ballari"):
         for col_num, value in enumerate(simplified_df.columns.values):
             worksheet.write(0, col_num, value, header_format)
         
-        # Set column widths
-        worksheet.set_column('A:A', 35)  # Student name (Ism-familiya uchun kattaroq kenglik)
+        # Set column widths - OTM foizi ustuni qo'shildi
+        worksheet.set_column('A:A', 30)  # Student name (Ism-familiya uchun kattaroq kenglik)
         worksheet.set_column('B:B', 10)  # Score
+        worksheet.set_column('C:C', 15)  # OTM foizi
     
     # Reset the pointer to the beginning of the BytesIO object
     excel_data.seek(0)
@@ -1076,13 +1081,13 @@ def prepare_excel_for_download(results_df):
     if 'Rank' not in df.columns:
         df['Rank'] = range(1, len(df) + 1)
     
-    # OTM foizi hisoblash (65 ball va undan yuqori) - qayta qo'shildi
+    # OTM foizi hisoblash (65 ball va undan yuqori) - yangilangan
     otm_threshold = 65
     otm_students = len(df[df['Standard Score'] >= otm_threshold])
     otm_percentage = (otm_students / len(df)) * 100
     
-    # OTM foizi ustunini qo'shish
-    df['OTM_Foizi'] = df['Standard Score'].apply(lambda x: 'Ha' if x >= otm_threshold else 'Yo\'q')
+    # OTM foizi ustunini qo'shish - foiz ko'rinishida
+    df['OTM_Foizi'] = df['Standard Score'].apply(lambda x: f"{(x / otm_threshold * 100):.2f}%" if x > 0 else "0.00%")
     
     # Sort by Standard Score in descending order
     df = df.sort_values(by='Standard Score', ascending=False).reset_index(drop=True)
@@ -1247,11 +1252,15 @@ def prepare_pdf_for_download(results_df, title="REPETITSION TEST NATIJALARI"):
     if 'Rank' not in results_df_sorted.columns:
         results_df_sorted['Rank'] = range(1, len(results_df_sorted) + 1)
     
-    # Column widths optimized for landscape
-    col_widths = [8*mm, 60*mm, 20*mm, 15*mm]
+    # OTM foizi hisoblash va qo'shish
+    otm_threshold = 65
+    results_df_sorted['OTM_Foizi'] = results_df_sorted['Standard Score'].apply(lambda x: f"{(x / otm_threshold * 100):.2f}%" if x > 0 else "0.00%")
     
-    # Prepare table header
-    table_data = [["NO", "ISM FAMILIYA", "BALL", "DARAJA"]]
+    # Column widths optimized for landscape - OTM foizi ustuni qo'shildi
+    col_widths = [8*mm, 50*mm, 20*mm, 25*mm, 15*mm]
+    
+    # Prepare table header - OTM foizi ustuni qo'shildi
+    table_data = [["NO", "ISM FAMILIYA", "BALL", "OTM FOIZI", "DARAJA"]]
     
     # Process section data if available
     section_data_available = False
@@ -1289,11 +1298,12 @@ def prepare_pdf_for_download(results_df, title="REPETITSION TEST NATIJALARI"):
         # Get grade description
         grade_desc = grade_descriptions.get(grade, "")
         
-        # Prepare row data
+        # Prepare row data - OTM foizi ustuni qo'shildi
         row_data = [
             str(row['Rank']) if 'Rank' in row else str(i+1),  # Rank
             str(row['Student ID']),       # Ism familiya
             f"{row['Standard Score']:.1f}",  # BALL
+            row['OTM_Foizi'],             # OTM FOIZI
             grade                         # DARAJA
         ]
         
@@ -1325,8 +1335,8 @@ def prepare_pdf_for_download(results_df, title="REPETITSION TEST NATIJALARI"):
         ('FONTNAME', (0, 1), (-1, -1), base_font),
         ('FONTSIZE', (0, 1), (-1, -1), 9),
         ('ALIGN', (0, 1), (1, -1), 'CENTER'),  # № and Rank columns centered
-        ('ALIGN', (3, 1), (5, -1), 'CENTER'),  # Score, percentage and grade columns centered
-        ('ALIGN', (2, 1), (2, -1), 'LEFT'),    # Name column left aligned
+        ('ALIGN', (2, 1), (4, -1), 'CENTER'),  # Score, OTM foizi and grade columns centered
+        ('ALIGN', (1, 1), (1, -1), 'LEFT'),    # Name column left aligned
         
         # Grid lines
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
@@ -1340,7 +1350,7 @@ def prepare_pdf_for_download(results_df, title="REPETITSION TEST NATIJALARI"):
     
     # Apply grade-specific colors for entire rows
     for i in range(1, len(table_data)):
-        grade_col = 3  # The 'DARAJA' column index
+        grade_col = 4  # The 'DARAJA' column index (changed due to OTM foizi column)
         grade = table_data[i][grade_col]
         
         # Define colors for grades and rows (per user request)
